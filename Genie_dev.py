@@ -1,6 +1,6 @@
 """ 
 This version, I started to build a markdown page to specilize in AI Pharmacist - DMI
-1. fix 
+1. This version is mainly to get input from several different types of docs such as doc, pdf, txt, etc.
 
 """
 
@@ -15,12 +15,34 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chains import ConversationalRetrievalChain
+from langchain.document_loaders import Docx2txtLoader
 from langchain.vectorstores import DocArrayInMemorySearch
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 import os
 from PIL import Image
-
+from langchain.document_loaders import (
+    CSVLoader,
+    DirectoryLoader,
+    GitLoader,
+    NotebookLoader,
+    OnlinePDFLoader,
+    PythonLoader,
+    TextLoader,
+    UnstructuredFileLoader,
+    UnstructuredHTMLLoader,
+    UnstructuredPDFLoader,
+    UnstructuredWordDocumentLoader,
+    WebBaseLoader,
+    PyPDFLoader,
+    UnstructuredMarkdownLoader,
+    UnstructuredEPubLoader,
+    UnstructuredHTMLLoader,
+    UnstructuredPowerPointLoader,
+    UnstructuredODTLoader,
+    NotebookLoader,
+    UnstructuredFileLoader
+)
 
 
 EMBEDDING_API_KEY = os.getenv('EMBEDDING_API_KEY')
@@ -28,6 +50,22 @@ EMBEDDING_API_BASE = os.getenv('EMBEDDING_API_BASE')
 EMBEDDING_API_VERSION = os.getenv('EMBEDDING_API_VERSION')
 EMDEDDING_ENGINE = os.getenv('EMDEDDING_ENGINE')
 
+FILE_LOADER_MAPPING = {
+    "csv": (CSVLoader, {"encoding": "utf-8"}),
+    "doc": (Docx2txtLoader, {}),
+    "docx": (Docx2txtLoader, {}),
+    # "epub": (UnstructuredEPubLoader, {}),
+    # "html": (UnstructuredHTMLLoader, {}),
+    # "md": (UnstructuredMarkdownLoader, {}),
+    # "odt": (UnstructuredODTLoader, {}),
+    "pdf": (PyPDFLoader, {}),
+    "ppt": (UnstructuredPowerPointLoader, {}),
+    "pptx": (UnstructuredPowerPointLoader, {}),
+    "txt": (TextLoader, {"encoding": "utf-8"}),
+    # "ipynb": (NotebookLoader, {}),
+    # "py": (PythonLoader, {}),
+ 
+}
 
 #ChatGPT credentials
 import openai
@@ -76,13 +114,33 @@ def configure_retriever(uploaded_files):
     # Read documents
     docs = []
     temp_dir = tempfile.TemporaryDirectory()
-    for file in uploaded_files:
-        temp_filepath = os.path.join(temp_dir.name, file.name)
-        with open(temp_filepath, "wb") as f:
-            f.write(file.getvalue())
-        loader = PyPDFLoader(temp_filepath)
-        #loader = Docx2txtLoader(temp_filepath)
-        docs.extend(loader.load())
+    for uploaded_file in uploaded_files:
+                st.write(f"Uploaded: {uploaded_file.name}")
+                ext = os.path.splitext(uploaded_file.name)[-1][1:].lower()
+                st.write(f"Uploaded: {ext}")
+
+                # Check if the extension is in FILE_LOADER_MAPPING
+                if ext in FILE_LOADER_MAPPING:
+                    loader_class, loader_args = FILE_LOADER_MAPPING[ext]
+                    # st.write(f"loader_class: {loader_class}")
+
+                    # Save the uploaded file to the temporary directory
+                    file_path = os.path.join(temp_dir.name, uploaded_file.name)
+                    with open(file_path, 'wb') as temp_file:
+                        temp_file.write(uploaded_file.read())
+
+                    # Use Langchain loader to process the file
+                    loader = loader_class(file_path, **loader_args)
+                    docs.extend(loader.load())
+                else:
+                    st.warning(f"Unsupported file extension: {ext}")
+    # for file in uploaded_files:
+    #     temp_filepath = os.path.join(temp_dir.name, file.name)
+    #     with open(temp_filepath, "wb") as f:
+    #         f.write(file.getvalue())
+    #     loader = PyPDFLoader(temp_filepath)
+    #     #loader = Docx2txtLoader(temp_filepath)
+    #     docs.extend(loader.load())
 
     # Split documents
     #text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
@@ -143,10 +201,10 @@ class PrintRetrievalHandler(BaseCallbackHandler):
 #     st.stop()
 st.sidebar.image('Genie/logo_dmi.png', width=200)
 uploaded_files = st.sidebar.file_uploader(
-    label="Upload PDF files", type=["pdf"], accept_multiple_files=True
+    label="Upload your documents", type=["pdf", "txt", "csv", "ppt", "pptx", "doc", "docx"], accept_multiple_files=True
 )
 if not uploaded_files:
-    st.info("Please upload PDF documents to continue.")
+    st.info("Please upload your documents to continue.")
     st.stop()
 
 retriever = configure_retriever(uploaded_files)
